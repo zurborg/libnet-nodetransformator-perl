@@ -29,16 +29,13 @@ GetOptions(
 
 if ($sock) {
 	$host = 'unix/';
-	if ($sock !~ m{^/}) {
-		$sock = join '/' => getcwd, $sock;
-	}
 	$port = $sock;
 }
 
-my $cli = new client("$host:$port");
+my $nnt = Net::NodeTransformator->new("$host:$port");
 
 if ($list) {
-	say $cli->transform('list');
+	say $nnt->transform('list');
 	exit;
 }
 
@@ -63,4 +60,40 @@ if ($json) {
 
 my $inp = join '' => <>;
 
-say $cli->transform($engine, $inp, $data);
+print $nnt->transform($engine, $inp, $data);
+
+__END__
+
+=head1 NAME
+
+transformate - client for transformator
+
+=head1 SYNOPSIS
+
+transformate [options] <input file>
+
+If no input file is given, standard input is used.
+
+=head1 OPTIONS
+
+=over 4
+
+=item C<--host> I<arg> hostname to connect to
+
+=item C<--port> I<arg> tcp port
+
+=item C<--sock> I<arg> unix domain socket path
+
+=item C<--engine> I<arg> engine name
+
+=item C<--cbor> I<arg> path to a CBOR file
+
+=item C<--yaml> I<arg> path to a YAML file
+
+=item C<--json> I<arg> path to a JSON file
+
+=item C<--list> just return a list of available engine, sorted by output format
+
+=back
+
+=cut
