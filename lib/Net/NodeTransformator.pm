@@ -14,11 +14,11 @@ Net::NodeTransformator - interface to node transformator
 
 =head1 VERSION
 
-Version 0.100
+Version 0.101
 
 =cut
 
-our $VERSION = '0.100';
+our $VERSION = '0.101';
 
 =head1 SYNOPSIS
 
