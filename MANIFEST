@@ -1,10 +1,12 @@
+bin/transformate
+config/BuildOptions.pm
+INSTALL
 lib/Net/NodeTransformator.pm
 LICENSE
-config/BuildOptions.pm
 Makefile.PL
 MANIFEST
 README
-INSTALL
 t/01-load.t
+t/02-jade.t
 t/pod-coverage.t
 t/pod.t
