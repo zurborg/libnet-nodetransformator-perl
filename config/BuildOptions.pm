@@ -4,13 +4,24 @@
     AUTHOR              => 'David Zurborg <zurborg@cpan.org>',
     VERSION_FROM        => 'lib/Net/NodeTransformator.pm',
     ABSTRACT_FROM       => 'lib/Net/NodeTransformator.pm',
-    LICENSE             => '',
+    LICENSE             => 'ISC',
+	META_MERGE          => {
+		resources => {
+			homepage   => 'https://metacpan.org/release/Net-NodeTransformator',
+			repository => 'https://github.com/zurborg/libnet-nodetransformator-perl.git',
+			bugtracker => 'https://github.com/zurborg/libnet-nodetransformator-perl/issues',
+		},
+	},
     PL_FILES            => {},
     PMLIBDIRS           => [qw[ lib ]],
     EXE_FILES           => [qw[ bin/transformate ]],
     PREREQ_PM           => {
         'Test::More'        => 0,
 		'Modern::Perl'      => 0,
+		'IPC::Run'          => 0,
+		'Getopt::Long'      => 0,
+		'POSIX'             => 0,
+		'AnyEvent'          => 7.07,
     },
     dist                => {
         COMPRESS            => 'gzip -9f',
