@@ -1,0 +1,25 @@
+%BuildOptions = (%BuildOptions,
+    NAME                => 'Net::NodeTransformator',
+    DISTNAME            => 'Net-NodeTransformator',
+    AUTHOR              => 'David Zurborg <zurborg@cpan.org>',
+    VERSION_FROM        => 'lib/Net/NodeTransformator.pm',
+    ABSTRACT_FROM       => 'lib/Net/NodeTransformator.pm',
+    LICENSE             => '',
+    PL_FILES            => {},
+    PMLIBDIRS           => [qw[ lib ]],
+    EXE_FILES           => [qw[ bin/transformate ]],
+    PREREQ_PM           => {
+        'Test::More'        => 0,
+		'Modern::Perl'      => 0,
+    },
+    dist                => {
+        COMPRESS            => 'gzip -9f',
+        SUFFIX              => 'gz',
+        CI                  => 'git add',
+        RCS_LABEL           => 'true',
+    },
+    clean               => { FILES => 'Net-NodeTransformator-*' },
+    depend              => {
+		'$(FIRST_MAKEFILE)' => 'config/BuildOptions.pm',
+    },
+);
