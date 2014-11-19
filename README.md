@@ -4,7 +4,7 @@ Net::NodeTransformator - interface to node transformator
 
 # VERSION
 
-Version 0.100
+Version 0.101
 
 # DESCRIPTION
 
