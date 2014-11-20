@@ -22,6 +22,7 @@
 		'Getopt::Long'      => 0,
 		'POSIX'             => 0,
 		'AnyEvent'          => 7.07,
+		'Env::Path'         => 0.19,
     },
     dist                => {
         COMPRESS            => 'gzip -9f',
