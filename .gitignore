@@ -16,3 +16,4 @@ MANIFEST.SKIP
 README
 README.pod
 SIGNATURE
+node_modules/
