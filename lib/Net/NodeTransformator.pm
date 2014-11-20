@@ -6,7 +6,6 @@ use AnyEvent;
 use AnyEvent::Handle;
 use AnyEvent::Socket;
 use POSIX qw(getcwd);
-use Carp;
 
 =head1 NAME
 
@@ -111,16 +110,20 @@ sub transform_cv($%) {
 		$options{on_error}->(@_);
 		$cv->send(undef);
 	};
-	
-	tcp_connect ($self->{host}, $self->{port}, sub {
-		return $err->($!) unless @_;
+
+	my $host = $self->{host};
+	my $port = $self->{port};
+
+	tcp_connect ($host, $port, sub {
+		return $err->("Connect to $host:$port failed: $!") unless @_;
 		my ($fh) = @_;
 		my $AEH;
 		$AEH = AnyEvent::Handle->new(
 			fh => $fh,
 			on_error => sub {
-				shift->destroy;
-				$err->($@);
+				my ($handle, $fatal, $message) = @_;
+				$handle->destroy;
+				$err->("Socket error: $message");
 			},
 			on_eof => sub {
 				$AEH->destroy;
@@ -130,14 +133,14 @@ sub transform_cv($%) {
 			my $answer = $_[1];
 			if (defined $answer and ref $answer eq 'HASH') {
 				if (exists $answer->{error}) {
-					$err->($answer->{error});
+					$err->("Service error: ".$answer->{error});
 				} elsif (exists $answer->{result}) {
 					$cv->send($answer->{result});
 				} else {
-					$err->("Something is wrong: no result and no error ($@)");
+					$err->("Something is wrong: no result and no error");
 				}
 			} else {
-				$err->("No answer ($@)");
+				$err->("No answer");
 			}
 		});
 		$AEH->push_write(cbor => [ $options{engine}, $options{input}, $options{data} || {} ]);
@@ -162,9 +165,9 @@ sub transform($$$;$) {
 	)->recv;
 	return $result if defined $result and not defined $error and not ref $result;
 	if (not defined $result and defined $error) {
-		croak $error;
+		AE::log fatal => $error;
 	} else {
-		croak "Something is wrong: $@";
+		AE::log fatal => "Something is wrong: $@";
 	}
 }
 
