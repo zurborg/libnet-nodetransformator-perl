@@ -165,9 +165,9 @@ sub transform($$$;$) {
 	)->recv;
 	return $result if defined $result and not defined $error and not ref $result;
 	if (not defined $result and defined $error) {
-		AE::log fatal => $error;
+		AE::log error => $error;
 	} else {
-		AE::log fatal => "Something is wrong: $@";
+		AE::log error => "Something is wrong: $@";
 	}
 }
 
