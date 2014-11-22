@@ -5,18 +5,21 @@ use Env::Path;
 use IPC::Run qw(start pump finish timeout);
 use Net::NodeTransformator;
 use Try::Tiny;
+use File::Temp qw(tempdir);
 
 plan skip_all => 'transformator is required for this test' unless Env::Path->PATH->Whence('transformator');
 
 plan tests => 1;
 
-my $sock = './socket';
-unlink $sock if -e $sock;
+my $tmpdir = tempdir;
+my $sock = $tmpdir.'/socket';
 
 my ($in, $out, $err);
 my $server = start [ transformator => $sock ], \$in, \$out, \$err, timeout(10);
 
 pump $server until $out =~ /server bound/;
+
+diag $out;
 
 my $client = Net::NodeTransformator->new($sock);
 
@@ -31,4 +34,5 @@ EOT
 
 $server->kill_kill;
 finish $server;
-
+unlink $sock;
+rmdir $tmpdir;

@@ -1,4 +1,5 @@
 package Net::NodeTransformator;
+# ABSTRACT: interface to node transformator
 
 use strict;
 use warnings;
@@ -7,17 +8,7 @@ use AnyEvent::Handle;
 use AnyEvent::Socket;
 use POSIX qw(getcwd);
 
-=head1 NAME
-
-Net::NodeTransformator - interface to node transformator
-
-=head1 VERSION
-
-Version 0.101
-
-=cut
-
-our $VERSION = '0.101';
+# VERSION
 
 =head1 SYNOPSIS
 
@@ -44,9 +35,7 @@ When it's difficult for perl to interact with various nodejs packages, the trans
 
 The other way is to invoke each command-line tool as a child process, but this may be very inefficient if such tool need to be called frequently.
 
-=head1 METHODS
-
-=head2 new($hostport)
+=method new($hostport)
 
 Set the hostname/port or unix domain socket for connecting to transformator.
 
@@ -75,7 +64,7 @@ sub new {
 	} => ref $class || $class;
 }
 
-=head2 transform_cv(%options)
+=method transform_cv(%options)
 
 Connects to transformator and waits for the result asynchronously by using a condition variable.
 
@@ -148,7 +137,7 @@ sub transform_cv($%) {
 	$cv;
 }
 
-=head2 transform($engine, $input, $data)
+=method transform($engine, $input, $data)
 
 This is the synchronous variant of C<transform_cv>. It croaks on error and can be catched by L<Try::Tiny> for example.
 
@@ -204,55 +193,5 @@ sub minify_css      ($$;$) { shift->transform(minify_css   => @_) }
 =cut
 
 sub minify_js       ($$;$) { shift->transform(minify_js    => @_) }
-
-=head1 AUTHOR
-
-David Zurborg, C<< <zurborg@cpan.org> >>
-
-=head1 BUGS
-
-Please report any bugs or feature requests at L<https://github.com/zurborg/libnet-nodetransformator-perl/issues>. I
-will be notified, and then you'll automatically be notified of progress on
-your bug as I make changes.
-
-=head1 SUPPORT
-
-You can find documentation for this module with the perldoc command.
-
-    perldoc Net::NodeTransformator
-
-You can also look for information at:
-
-=over 4
-
-=item * GitHub: Public repository of this module
-
-L<https://github.com/zurborg/libnet-nodetransformator-perl>
-
-=item * RT: CPAN's request tracker
-
-L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=Net-NodeTransformator>
-
-=item * AnnoCPAN: Annotated CPAN documentation
-
-L<http://annocpan.org/dist/Net-NodeTransformator>
-
-=item * CPAN Ratings
-
-L<http://cpanratings.perl.org/d/Net-NodeTransformator>
-
-=item * Search CPAN
-
-L<http://search.cpan.org/dist/Net-NodeTransformator/>
-
-=back
-
-=head1 COPYRIGHT & LICENSE
-
-Copyright 2014 David Zurborg, all rights reserved.
-
-This program is released under the ISC license.
-
-=cut
 
 1;

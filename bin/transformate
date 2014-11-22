@@ -1,4 +1,5 @@
-#!/usr/bin/perl -w
+# ABSTRACT: transformate
+# PODNAME: transformate
 
 use Modern::Perl;
 use Getopt::Long;

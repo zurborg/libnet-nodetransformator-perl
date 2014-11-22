@@ -7,6 +7,7 @@ perl:
   - "5.10"
 
 before_script:
+  - dzil authordeps --missing | cpanm
   - npm install transformator
   - cpanm Pod::Readme
   - cpanm Pod::Markdown
@@ -15,7 +16,8 @@ before_script:
 env:
   - PATH=$PATH:node_modules/transformator/bin
 
-script: "perl Makefile-Development.PL && make all && make disttest"
+script:
+  - dzil test
 
 notifications:
   email:
