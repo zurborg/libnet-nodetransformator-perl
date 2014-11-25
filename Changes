@@ -1,6 +1,7 @@
 Revision history for Net-NodeTransformator
 
 {{$NEXT}}
+ - provide standalone mechanism
 
 0.102 2014-11-22
  - use Dist::Zilla::TravisCI
