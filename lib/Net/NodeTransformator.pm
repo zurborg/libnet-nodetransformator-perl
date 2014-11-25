@@ -6,6 +6,8 @@ use warnings;
 use AnyEvent;
 use AnyEvent::Handle;
 use AnyEvent::Socket;
+use Try::Tiny;
+use File::Temp qw(tempdir);
 use POSIX qw(getcwd);
 
 # VERSION
@@ -62,6 +64,74 @@ sub new {
 		host => $host,
 		port => $port,
 	} => ref $class || $class;
+}
+
+=method standalone([$hostport])
+
+Starts a I<transformator> standalone server. If C<$hostport> is omitted, a temporary directory will be created and a unix domain socket will be placed in it.
+
+Returns a ready-to-use L<Net::NodeTransformator> instance.
+
+	Net::NodeTransformator->standalone;
+
+=cut
+
+sub standalone {
+	my ($class, $hostport) = @_;
+	require IPC::Run;
+	
+	my $bin = 'transformator';
+	my ($path) = Env::Path->PATH->Whence($bin);
+	
+	unless ($hostport) {
+		my $tmpdir = tempdir(CLEANUP => 1);
+		$hostport = "$tmpdir/~sock";
+	}
+	
+	my ($in, $out, $err);
+	my $server = IPC::Run::start([ $path => $hostport ], \$in, \$out, \$err, IPC::Run::timeout(10));
+	my $ready = 0;
+	
+	try {
+		$server->pump until $out =~ /server bound/;
+		$ready = 1;
+	} catch {
+		my $errmsg = $_;
+		try {
+			$server->kill_kill;
+			$server->finish;
+		};
+		AE::log error => $errmsg;
+	};
+	
+	AE::log debug => $out if $out;
+	AE::log warn => $err if $err;
+	
+	if ($ready) {
+		my $client = $class->new($hostport);
+		$client->{_server} = $server;
+		return $client;
+	}
+	
+	AE::log fatal => 'standalone service not started';
+}
+
+=method cleanup
+
+Stopps a previously started standalone server.
+
+=cut
+
+sub cleanup {
+	my ($self) = @_;
+	if (exists $self->{_server}) {
+		my $server = delete $self->{_server};
+		$server->kill_kill;
+		$server->finish;
+	} else {
+		AE::log note => "$self->cleanup called when no standalone server active";
+	}
+	
 }
 
 =method transform_cv(%options)

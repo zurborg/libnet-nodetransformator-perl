@@ -11,17 +11,7 @@ plan skip_all => 'transformator is required for this test' unless Env::Path->PAT
 
 plan tests => 1;
 
-my $tmpdir = tempdir;
-my $sock = $tmpdir.'/socket';
-
-my ($in, $out, $err);
-my $server = start [ transformator => $sock ], \$in, \$out, \$err, timeout(10);
-
-pump $server until $out =~ /server bound/;
-
-diag $out;
-
-my $client = Net::NodeTransformator->new($sock);
+my $client = Net::NodeTransformator->standalone;
 
 try {
 	is $client->jade(<<EOT, { name => 'Peter' }) => '<span>Hi Peter!</span>';
@@ -32,7 +22,4 @@ EOT
 	diag $_
 };
 
-$server->kill_kill;
-finish $server;
-unlink $sock;
-rmdir $tmpdir;
+$client->cleanup;
