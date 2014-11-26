@@ -8,6 +8,7 @@ use AnyEvent::Handle;
 use AnyEvent::Socket;
 use AnyEvent::Proc;
 use Try::Tiny;
+use Env::Path;
 use File::Temp qw(tempdir);
 use POSIX qw(getcwd);
 
