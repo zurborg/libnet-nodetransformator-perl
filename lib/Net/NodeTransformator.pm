@@ -6,6 +6,7 @@ use warnings;
 use AnyEvent;
 use AnyEvent::Handle;
 use AnyEvent::Socket;
+use AnyEvent::Proc;
 use Try::Tiny;
 use File::Temp qw(tempdir);
 use POSIX qw(getcwd);
@@ -78,42 +79,48 @@ Returns a ready-to-use L<Net::NodeTransformator> instance.
 
 sub standalone {
 	my ($class, $hostport) = @_;
-	require IPC::Run;
-	
+
 	my $bin = 'transformator';
 	my ($path) = Env::Path->PATH->Whence($bin);
-	
+
 	unless ($hostport) {
 		my $tmpdir = tempdir(CLEANUP => 1);
 		$hostport = "$tmpdir/~sock";
 	}
-	
-	my ($in, $out, $err);
-	my $server = IPC::Run::start([ $path => $hostport ], \$in, \$out, \$err, IPC::Run::timeout(10));
-	my $ready = 0;
-	
-	try {
-		$server->pump until $out =~ /server bound/;
-		$ready = 1;
-	} catch {
-		my $errmsg = $_;
-		try {
-			$server->kill_kill;
-			$server->finish;
-		};
-		AE::log error => $errmsg;
-	};
-	
-	AE::log debug => $out if $out;
-	AE::log warn => $err if $err;
-	
-	if ($ready) {
+
+	my $errstr;
+
+	my $ok = 0;
+
+	my $server = AnyEvent::Proc->new(
+		bin => $path,
+		args => [ $hostport ],
+		rtimeout => 10,
+		errstr => \$errstr,
+		on_rtimeout => sub { shift->kill; $ok = 0 },
+	);
+
+	while (local $_ = $server->readline) {
+		AE::log debug => $_;
+		if (/server bound/) {
+			$ok = 1;
+			last;
+		}
+	}
+
+	AE::log error => $errstr if $errstr;
+
+	$server->stop_rtimeout;
+
+	unless ($ok) {
+		$server->fire_and_kill(10);
+		AE::log fatal => 'standalone service not started';
+		return undef;
+	} else {
 		my $client = $class->new($hostport);
 		$client->{_server} = $server;
-		return $client;
+		return $client;	
 	}
-	
-	AE::log fatal => 'standalone service not started';
 }
 
 =method cleanup
@@ -126,12 +133,11 @@ sub cleanup {
 	my ($self) = @_;
 	if (exists $self->{_server}) {
 		my $server = delete $self->{_server};
-		$server->kill_kill;
-		$server->finish;
+		$server->fire_and_kill(10);
 	} else {
 		AE::log note => "$self->cleanup called when no standalone server active";
 	}
-	
+
 }
 
 =method transform_cv(%options)
@@ -162,9 +168,9 @@ The result will be pushed to the condvar, so C<$cv->recv> will return the result
 
 sub transform_cv($%) {
 	my ($self, %options) = @_;
-	
+
 	my $cv = AE::cv;
-	
+
 	my $err = sub {
 		$options{on_error}->(@_);
 		$cv->send(undef);
