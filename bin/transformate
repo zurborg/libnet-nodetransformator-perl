@@ -7,6 +7,8 @@ use POSIX qw(getcwd);
 use Net::NodeTransformator;
 use autodie;
 
+# VERSION
+
 my $host = 'localhost';
 my $port = 12345;
 my $sock;
