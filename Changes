@@ -2,6 +2,7 @@ Revision history for Net-NodeTransformator
 
 {{$NEXT}}
  - provide standalone mechanism
+ - use AnyEvent::Proc instead of IPC::Run
 
 0.102 2014-11-22
  - use Dist::Zilla::TravisCI
