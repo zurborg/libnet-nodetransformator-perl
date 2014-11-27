@@ -6,7 +6,7 @@ use warnings;
 use AnyEvent;
 use AnyEvent::Handle;
 use AnyEvent::Socket;
-use AnyEvent::Proc;
+use AnyEvent::Proc 0.101;
 use Try::Tiny;
 use Env::Path;
 use File::Temp qw(tempdir);
