@@ -4,6 +4,14 @@ Revision history for Net-NodeTransformator
  - provide standalone mechanism
  - use AnyEvent::Proc instead of IPC::Run
 
+ [API CHANGES]
+
+ [BUG FIXES]
+
+ [DOCUMENTATION]
+
+ [ENHANCEMENTS]
+
 0.102 2014-11-22
  - use Dist::Zilla::TravisCI
  - install Software::License::ISC at first
