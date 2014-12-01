@@ -11,6 +11,7 @@ use Try::Tiny;
 use Env::Path;
 use File::Temp qw(tempdir);
 use POSIX qw(getcwd);
+use CBOR::XS ();
 
 # VERSION
 

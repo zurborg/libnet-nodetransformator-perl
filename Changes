@@ -3,6 +3,7 @@ Revision history for Net-NodeTransformator
 {{$NEXT}}
  - provide standalone mechanism
  - use AnyEvent::Proc instead of IPC::Run
+ - fix prerequirements
 
  [API CHANGES]
 
