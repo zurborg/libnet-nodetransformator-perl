@@ -1,8 +1,7 @@
 #!perl
 
-use Test::More;
+use Test::Most;
 use Env::Path;
-use IPC::Run qw(start pump finish timeout);
 use Net::NodeTransformator;
 use Try::Tiny;
 use File::Temp qw(tempdir);

@@ -1,8 +1,8 @@
+use strict;
+use warnings;
 package Net::NodeTransformator;
 # ABSTRACT: interface to node transformator
 
-use strict;
-use warnings;
 use AnyEvent;
 use AnyEvent::Handle;
 use AnyEvent::Socket;
@@ -116,7 +116,7 @@ sub standalone {
 	unless ($ok) {
 		$server->fire_and_kill(10);
 		AE::log fatal => 'standalone service not started';
-		return undef;
+		return;
 	} else {
 		my $client = $class->new($hostport);
 		$client->{_server} = $server;
@@ -167,7 +167,7 @@ The result will be pushed to the condvar, so C<$cv->recv> will return the result
 
 =cut
 
-sub transform_cv($%) {
+sub transform_cv {
 	my ($self, %options) = @_;
 
 	my $cv = AE::cv;
@@ -220,7 +220,7 @@ This is the synchronous variant of C<transform_cv>. It croaks on error and can b
 
 =cut
 
-sub transform($$$;$) {
+sub transform {
 	my ($self, $engine, $input, $data) = @_;
 	my $error;
 	my $result = $self->transform_cv(
@@ -245,30 +245,30 @@ This list is incomplete. I will add more methods on request. All methods are hop
 
 =cut
 
-sub jade            ($$;$) { shift->transform(jade         => @_) }
+sub jade { shift->transform(jade         => @_) }
 
 =head2 coffeescript($input)
 
 =cut
 
-sub coffeescript    ($$;$) { shift->transform(coffeescript => @_) }
+sub coffeescript { shift->transform(coffeescript => @_) }
 
 =head2 minify_html($input)
 
 =cut
 
-sub minify_html     ($$;$) { shift->transform(minify_html  => @_) }
+sub minify_html { shift->transform(minify_html  => @_) }
 
 =head2 minify_css($input)
 
 =cut
 
-sub minify_css      ($$;$) { shift->transform(minify_css   => @_) }
+sub minify_css { shift->transform(minify_css   => @_) }
 
 =head2 minify_js($input)
 
 =cut
 
-sub minify_js       ($$;$) { shift->transform(minify_js    => @_) }
+sub minify_js { shift->transform(minify_js    => @_) }
 
 1;
