@@ -1,6 +1,8 @@
 use strict;
 use warnings;
+
 package Net::NodeTransformator;
+
 # ABSTRACT: interface to node transformator
 
 use AnyEvent;
@@ -12,6 +14,7 @@ use Env::Path;
 use File::Temp qw(tempdir);
 use POSIX qw(getcwd);
 use CBOR::XS ();
+use Carp;
 
 # VERSION
 
@@ -51,25 +54,27 @@ Set the hostname/port or unix domain socket for connecting to transformator.
 =cut
 
 sub new {
-	my ($class, $hostport) = @_;
-	if ($hostport !~ m{:}) {
-		if ($hostport =~ m{^\d+$}) {
-			$hostport = "localhost:$hostport";
-		} else {
-			$hostport = "unix/:$hostport";
-		}
-	}
-	my ($host, $port) = parse_hostport($hostport);
-	if ($host eq 'unix/' and $port !~ m{^/}) {
-		$port = getcwd.'/'.$port;
-	}
-	bless {
-		host => $host,
-		port => $port,
-	} => ref $class || $class;
+    my ( $class, $hostport ) = @_;
+    if ( $hostport !~ m{:} ) {
+        if ( $hostport =~ m{^\d+$} ) {
+            $hostport = "localhost:$hostport";
+        }
+        else {
+            $hostport = "unix/:$hostport";
+        }
+    }
+    my ( $host, $port ) = parse_hostport($hostport);
+    if ( $host eq 'unix/' and $port !~ m{^/} ) {
+        $port = getcwd . '/' . $port;
+    }
+    bless {
+        host => $host,
+        port => $port,
+      } => ref $class
+      || $class;
 }
 
-=method standalone([$hostport])
+=method standalone([$hostport[, $bin]])
 
 Starts a I<transformator> standalone server. If C<$hostport> is omitted, a temporary directory will be created and a unix domain socket will be placed in it.
 
@@ -77,52 +82,59 @@ Returns a ready-to-use L<Net::NodeTransformator> instance.
 
 	Net::NodeTransformator->standalone;
 
+Use C<$bin> to either name the binary that could be found in I<$PATH> or name a direct path to the binary. Defaults to I<transformator>.
+
 =cut
 
 sub standalone {
-	my ($class, $hostport) = @_;
+    my ( $class, $hostport, $bin ) = @_;
 
-	my $bin = 'transformator';
-	my ($path) = Env::Path->PATH->Whence($bin);
+    $bin ||= 'transformator';
+    my $path = $bin =~ m{/} ? $bin : ( Env::Path->PATH->Whence($bin) )[0];
 
-	unless ($hostport) {
-		my $tmpdir = tempdir(CLEANUP => 1);
-		$hostport = "$tmpdir/~sock";
-	}
+    unless ($path) {
+        croak "binary $bin not found";
+    }
 
-	my $errstr;
+    unless ($hostport) {
+        my $tmpdir = tempdir( CLEANUP => 1 );
+        $hostport = "$tmpdir/~sock";
+    }
 
-	my $ok = 0;
+    my $errstr;
 
-	my $server = AnyEvent::Proc->new(
-		bin => $path,
-		args => [ $hostport ],
-		rtimeout => 10,
-		errstr => \$errstr,
-		on_rtimeout => sub { shift->kill; $ok = 0 },
-	);
+    my $ok = 0;
 
-	while (local $_ = $server->readline) {
-		AE::log debug => $_;
-		if (/server bound/) {
-			$ok = 1;
-			last;
-		}
-	}
+    my $server = AnyEvent::Proc->new(
+        bin         => $path,
+        args        => [$hostport],
+        rtimeout    => 10,
+        errstr      => \$errstr,
+        on_rtimeout => sub { shift->kill; $ok = 0 },
+    );
 
-	AE::log error => $errstr if $errstr;
+    while ( local $_ = $server->readline ) {
+        AE::log debug => $_;
+        if (/server bound/) {
+            $ok = 1;
+            last;
+        }
+    }
 
-	$server->stop_rtimeout;
+    AE::log error => $errstr if $errstr;
 
-	unless ($ok) {
-		$server->fire_and_kill(10);
-		AE::log fatal => 'standalone service not started';
-		return;
-	} else {
-		my $client = $class->new($hostport);
-		$client->{_server} = $server;
-		return $client;	
-	}
+    $server->stop_rtimeout;
+
+    unless ($ok) {
+        $server->fire_and_kill(10);
+        AE::log fatal => 'standalone service not started';
+        return;
+    }
+    else {
+        my $client = $class->new($hostport);
+        $client->{_server} = $server;
+        return $client;
+    }
 }
 
 =method cleanup
@@ -132,13 +144,15 @@ Stopps a previously started standalone server.
 =cut
 
 sub cleanup {
-	my ($self) = @_;
-	if (exists $self->{_server}) {
-		my $server = delete $self->{_server};
-		$server->fire_and_kill(10);
-	} else {
-		AE::log note => "$self->cleanup called when no standalone server active";
-	}
+    my ($self) = @_;
+    if ( exists $self->{_server} ) {
+        my $server = delete $self->{_server};
+        $server->fire_and_kill(10);
+    }
+    else {
+        AE::log note =>
+          "$self->cleanup called when no standalone server active";
+    }
 
 }
 
@@ -169,50 +183,60 @@ The result will be pushed to the condvar, so C<$cv->recv> will return the result
 =cut
 
 sub transform_cv {
-	my ($self, %options) = @_;
+    my ( $self, %options ) = @_;
 
-	my $cv = AE::cv;
+    my $cv = AE::cv;
 
-	my $err = sub {
-		$options{on_error}->(@_);
-		$cv->send(undef);
-	};
+    my $err = sub {
+        $options{on_error}->(@_);
+        $cv->send(undef);
+    };
 
-	my $host = $self->{host};
-	my $port = $self->{port};
+    my $host = $self->{host};
+    my $port = $self->{port};
 
-	tcp_connect ($host, $port, sub {
-		return $err->("Connect to $host:$port failed: $!") unless @_;
-		my ($fh) = @_;
-		my $AEH;
-		$AEH = AnyEvent::Handle->new(
-			fh => $fh,
-			on_error => sub {
-				my ($handle, $fatal, $message) = @_;
-				$handle->destroy;
-				$err->("Socket error: $message");
-			},
-			on_eof => sub {
-				$AEH->destroy;
-			},
-		);
-		$AEH->push_read(cbor => sub {
-			my $answer = $_[1];
-			if (defined $answer and ref $answer eq 'HASH') {
-				if (exists $answer->{error}) {
-					$err->("Service error: ".$answer->{error});
-				} elsif (exists $answer->{result}) {
-					$cv->send($answer->{result});
-				} else {
-					$err->("Something is wrong: no result and no error");
-				}
-			} else {
-				$err->("No answer");
-			}
-		});
-		$AEH->push_write(cbor => [ $options{engine}, $options{input}, $options{data} || {} ]);
-	});
-	$cv;
+    tcp_connect(
+        $host, $port,
+        sub {
+            return $err->("Connect to $host:$port failed: $!") unless @_;
+            my ($fh) = @_;
+            my $AEH;
+            $AEH = AnyEvent::Handle->new(
+                fh       => $fh,
+                on_error => sub {
+                    my ( $handle, $fatal, $message ) = @_;
+                    $handle->destroy;
+                    $err->("Socket error: $message");
+                },
+                on_eof => sub {
+                    $AEH->destroy;
+                },
+            );
+            $AEH->push_read(
+                cbor => sub {
+                    my $answer = $_[1];
+                    if ( defined $answer and ref $answer eq 'HASH' ) {
+                        if ( exists $answer->{error} ) {
+                            $err->( "Service error: " . $answer->{error} );
+                        }
+                        elsif ( exists $answer->{result} ) {
+                            $cv->send( $answer->{result} );
+                        }
+                        else {
+                            $err->(
+                                "Something is wrong: no result and no error");
+                        }
+                    }
+                    else {
+                        $err->("No answer");
+                    }
+                }
+            );
+            $AEH->push_write( cbor =>
+                  [ $options{engine}, $options{input}, $options{data} || {} ] );
+        }
+    );
+    $cv;
 }
 
 =method transform($engine, $input, $data)
@@ -222,20 +246,24 @@ This is the synchronous variant of C<transform_cv>. It croaks on error and can b
 =cut
 
 sub transform {
-	my ($self, $engine, $input, $data) = @_;
-	my $error;
-	my $result = $self->transform_cv(
-		on_error => sub { $error = shift },
-		engine => $engine,
-		input => $input,
-		data => $data,
-	)->recv;
-	return $result if defined $result and not defined $error and not ref $result;
-	if (not defined $result and defined $error) {
-		AE::log error => $error;
-	} else {
-		AE::log error => "Something is wrong: $@";
-	}
+    my ( $self, $engine, $input, $data ) = @_;
+    my $error;
+    my $result = $self->transform_cv(
+        on_error => sub { $error = shift },
+        engine   => $engine,
+        input    => $input,
+        data     => $data,
+    )->recv;
+    return $result
+      if defined $result
+      and not defined $error
+      and not ref $result;
+    if ( not defined $result and defined $error ) {
+        AE::log error => $error;
+    }
+    else {
+        AE::log error => "Something is wrong: $@";
+    }
 }
 
 =head1 SHORTCUT METHODS
@@ -246,30 +274,30 @@ This list is incomplete. I will add more methods on request. All methods are hop
 
 =cut
 
-sub jade { shift->transform(jade         => @_) }
+sub jade { shift->transform( jade => @_ ) }
 
 =head2 coffeescript($input)
 
 =cut
 
-sub coffeescript { shift->transform(coffeescript => @_) }
+sub coffeescript { shift->transform( coffeescript => @_ ) }
 
 =head2 minify_html($input)
 
 =cut
 
-sub minify_html { shift->transform(minify_html  => @_) }
+sub minify_html { shift->transform( minify_html => @_ ) }
 
 =head2 minify_css($input)
 
 =cut
 
-sub minify_css { shift->transform(minify_css   => @_) }
+sub minify_css { shift->transform( minify_css => @_ ) }
 
 =head2 minify_js($input)
 
 =cut
 
-sub minify_js { shift->transform(minify_js    => @_) }
+sub minify_js { shift->transform( minify_js => @_ ) }
 
 1;
