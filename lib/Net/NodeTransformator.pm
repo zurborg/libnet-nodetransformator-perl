@@ -204,9 +204,17 @@ Connects to transformator and waits for the result asynchronously by using a con
 
 =item C<data> (optional) Additional data to be send with. Currently only meaningful for I<jade> engine.
 
+=item C<cv> (optional) An own AnyEvent::CondVar
+
+=item C<cb> (optional) A callback handler
+
+	$nnt->transform_cv(..., cb => sub {
+		my $result = shift->recv; # croaks on error
+	});
+
 =back
 
-This method returns a condition variable (L<AnyEvent>->condvar)
+This method returns a condition variable (L<AnyEvent>::CondVar)
 
 	my $cv = $nnt->transform_cv(...);
 
@@ -222,7 +230,7 @@ sub transform_cv {
 "on_error option is deprecated. the returned condvar will now croak on receive if there is an error.";
     }
 
-    my $cv = AE::cv;
+    my $cv = $options{cv} || AE::cv;
 
     my $host = $self->{host};
     my $port = $self->{port};
@@ -268,6 +276,9 @@ sub transform_cv {
                   [ $options{engine}, $options{input}, $options{data} || {} ] );
         }
     );
+
+    $cv->cb( $options{cb} ) if $options{cb};
+
     $cv;
 }
 
