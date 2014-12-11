@@ -74,66 +74,100 @@ sub new {
       || $class;
 }
 
-=method standalone([$hostport[, $bin]])
+=method standalone([$connect|%options])
 
-Starts a I<transformator> standalone server. If C<$hostport> is omitted, a temporary directory will be created and a unix domain socket will be placed in it.
+Starts a I<transformator> standalone server. If C<$connect> or C<$options{connect}> is omitted, a temporary directory will be created and a unix domain socket will be placed in it.
 
 Returns a ready-to-use L<Net::NodeTransformator> instance.
 
 	Net::NodeTransformator->standalone;
 
-Use C<$bin> to either name the binary that could be found in I<$PATH> or name a direct path to the binary. Defaults to I<transformator>.
+Use C<$options{bin}> to either name the binary that could be found in I<$PATH> or name a direct path to the binary. Defaults to I<transformator>.
+
+Use C<$options{cb}> to set a callback handler, to avoid blocking.
+
+	Net::NodeTransformator->standalone(cb => sub {
+		my $nnt = shift->recv; # croaks on error
+	});
+
+Alternativly, use C<$options{cv}> to use the condvar directly
+
+	my $cv = Net::NodeTransformator->standalone(cv => 1);
+	my $nnt = $cv->recv;
+
+In both cases, a condvar is returned. An own condvar can also be used:
+
+	my $cv = AE::cv;
+	Net::NodeTransformator->standalone(cv => $cv);
+	$cv->recv;
 
 =cut
 
 sub standalone {
-    my ( $class, $hostport, $bin ) = @_;
+    my $class = shift;
 
-    $bin ||= 'transformator';
-    my $path = $bin =~ m{/} ? $bin : ( Env::Path->PATH->Whence($bin) )[0];
+    my %options;
+    if ( @_ > 1 and !( @_ % 2 ) ) {
+        %options = @_;
+    }
+    elsif ( @_ == 1 ) {
+        $options{connect} = shift;
+    }
+    elsif (@_) {
+        croak "wrong paramater given for $class->standalone";
+    }
+
+    $options{bin} ||= 'transformator';
+    my $path =
+        $options{bin} =~ m{/}
+      ? $options{bin}
+      : ( Env::Path->PATH->Whence( $options{bin} ) )[0];
 
     unless ($path) {
-        croak "binary $bin not found";
+        croak "binary " . $options{bin} . " not found";
     }
 
-    unless ($hostport) {
+    unless ( $options{connect} ) {
         my $tmpdir = tempdir( CLEANUP => 1 );
-        $hostport = "$tmpdir/~sock";
+        $options{connect} = "$tmpdir/~sock";
     }
 
-    my $errstr;
+    my $errstr = '';
 
-    my $ok = 0;
+    my $cv = $options{cv} // AE::cv;
 
     my $server = AnyEvent::Proc->new(
         bin         => $path,
-        args        => [$hostport],
+        args        => [ $options{connect} ],
         rtimeout    => 10,
         errstr      => \$errstr,
-        on_rtimeout => sub { shift->kill; $ok = 0 },
+        on_rtimeout => sub {
+            shift->fire_and_kill(
+                10,
+                sub {
+                    $cv->croak( 'timeout (' . $errstr . ')' );
+                }
+            );
+        },
     );
 
-    while ( local $_ = $server->readline ) {
-        AE::log debug => $_;
-        if (/server bound/) {
-            $ok = 1;
-            last;
+    $server->readlines_cb(
+        sub {
+            if ( shift =~ m{server bound} ) {
+                $server->stop_rtimeout;
+                my $client = $class->new( $options{connect} );
+                $client->{_server} = $server;
+                $cv->send($client);
+            }
         }
-    }
+    );
 
-    AE::log error => $errstr if $errstr;
-
-    $server->stop_rtimeout;
-
-    unless ($ok) {
-        $server->fire_and_kill(10);
-        AE::log fatal => 'standalone service not started';
-        return;
+    if ( $options{cb} or $options{cv} ) {
+        $cv->cb( $options{cb} ) if $options{cb};
+        return $cv;
     }
     else {
-        my $client = $class->new($hostport);
-        $client->{_server} = $server;
-        return $client;
+        return $cv->recv;
     }
 }
 
@@ -170,27 +204,25 @@ Connects to transformator and waits for the result asynchronously by using a con
 
 =item C<data> (optional) Additional data to be send with. Currently only meaningful for I<jade> engine.
 
-=item C<on_error> A callback subroutine called in case of any error
-
 =back
 
 This method returns a condition variable (L<AnyEvent>->condvar)
 
 	my $cv = $nnt->transform_cv(...);
 
-The result will be pushed to the condvar, so C<$cv->recv> will return the result.
+The result will be pushed to the condvar, so C<< $cv->recv >> will return the result or croaks on error.
 
 =cut
 
 sub transform_cv {
     my ( $self, %options ) = @_;
 
-    my $cv = AE::cv;
+    if ( $options{on_error} ) {
+        confess
+"on_error option is deprecated. the returned condvar will now croak on receive if there is an error.";
+    }
 
-    my $err = sub {
-        $options{on_error}->(@_);
-        $cv->send(undef);
-    };
+    my $cv = AE::cv;
 
     my $host = $self->{host};
     my $port = $self->{port};
@@ -198,7 +230,7 @@ sub transform_cv {
     tcp_connect(
         $host, $port,
         sub {
-            return $err->("Connect to $host:$port failed: $!") unless @_;
+            return $cv->croak("Connect to $host:$port failed: $!") unless @_;
             my ($fh) = @_;
             my $AEH;
             $AEH = AnyEvent::Handle->new(
@@ -206,7 +238,7 @@ sub transform_cv {
                 on_error => sub {
                     my ( $handle, $fatal, $message ) = @_;
                     $handle->destroy;
-                    $err->("Socket error: $message");
+                    $cv->croak("Socket error: $message");
                 },
                 on_eof => sub {
                     $AEH->destroy;
@@ -217,18 +249,18 @@ sub transform_cv {
                     my $answer = $_[1];
                     if ( defined $answer and ref $answer eq 'HASH' ) {
                         if ( exists $answer->{error} ) {
-                            $err->( "Service error: " . $answer->{error} );
+                            $cv->croak( "Service error: " . $answer->{error} );
                         }
                         elsif ( exists $answer->{result} ) {
                             $cv->send( $answer->{result} );
                         }
                         else {
-                            $err->(
+                            $cv->croak(
                                 "Something is wrong: no result and no error");
                         }
                     }
                     else {
-                        $err->("No answer");
+                        $cv->croak("No answer");
                     }
                 }
             );
@@ -247,23 +279,11 @@ This is the synchronous variant of C<transform_cv>. It croaks on error and can b
 
 sub transform {
     my ( $self, $engine, $input, $data ) = @_;
-    my $error;
-    my $result = $self->transform_cv(
-        on_error => sub { $error = shift },
-        engine   => $engine,
-        input    => $input,
-        data     => $data,
+    $self->transform_cv(
+        engine => $engine,
+        input  => $input,
+        data   => $data,
     )->recv;
-    return $result
-      if defined $result
-      and not defined $error
-      and not ref $result;
-    if ( not defined $result and defined $error ) {
-        AE::log error => $error;
-    }
-    else {
-        AE::log error => "Something is wrong: $@";
-    }
 }
 
 =head1 SHORTCUT METHODS
