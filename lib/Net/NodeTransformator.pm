@@ -80,7 +80,7 @@ Starts a I<transformator> standalone server. If C<$connect> or C<$options{connec
 
 Returns a ready-to-use L<Net::NodeTransformator> instance.
 
-	Net::NodeTransformator->standalone;
+	my $nnt = Net::NodeTransformator->standalone; # croaks on error
 
 Use C<$options{bin}> to either name the binary that could be found in I<$PATH> or name a direct path to the binary. Defaults to I<transformator>.
 
@@ -93,13 +93,13 @@ Use C<$options{cb}> to set a callback handler, to avoid blocking.
 Alternativly, use C<$options{cv}> to use the condvar directly
 
 	my $cv = Net::NodeTransformator->standalone(cv => 1);
-	my $nnt = $cv->recv;
+	my $nnt = $cv->recv; # croaks on error
 
 In both cases, a condvar is returned. An own condvar can also be used:
 
 	my $cv = AE::cv;
 	Net::NodeTransformator->standalone(cv => $cv);
-	$cv->recv;
+	$cv->recv; # croaks on error
 
 =cut
 
