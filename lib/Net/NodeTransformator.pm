@@ -274,6 +274,7 @@ sub transform_cv {
             );
             $AEH->push_write( cbor =>
                   [ $options{engine}, $options{input}, $options{data} || {} ] );
+            $AEH->push_shutdown;
         }
     );
 

@@ -1,6 +1,7 @@
 Revision history for Net-NodeTransformator
 
 {{$NEXT}}
+ - shutdown socket
 
 0.104 2014-12-11
  - fix prerequirements
